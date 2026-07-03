@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withServiceAlias, withServiceAliasList } from '../../common/utils/serialize.util';
 
 @Injectable()
 export class ServicesService {
@@ -15,7 +16,7 @@ export class ServicesService {
       include: { category: { select: { name: true } } },
       orderBy: { sortOrder: 'asc' },
     });
-    return { data: services };
+    return { data: withServiceAliasList(services) };
   }
 
   async findOne(id: string) {
@@ -34,7 +35,7 @@ export class ServicesService {
       },
     });
     if (!service) throw new NotFoundException('Service not found');
-    return { data: service };
+    return { data: withServiceAlias(service) };
   }
 
   async getPopular() {
@@ -47,7 +48,7 @@ export class ServicesService {
       orderBy: { bookingItems: { _count: 'desc' } },
       take: 10,
     });
-    return { data: services };
+    return { data: withServiceAliasList(services) };
   }
 
   async create(data: any) {

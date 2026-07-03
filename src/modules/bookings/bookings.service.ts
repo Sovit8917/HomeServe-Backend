@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingStatus } from '../../common/enums';
 import { EVENTS } from '../../common/events/events.constants';
+import { withBookingAlias, withBookingAliasList } from '../../common/utils/serialize.util';
 
 @Injectable()
 export class BookingsService {
@@ -96,7 +97,7 @@ export class BookingsService {
       addressCity: booking.address?.city ?? '',
     });
 
-    return { message: 'Booking created successfully', data: booking };
+    return { message: 'Booking created successfully', data: withBookingAlias(booking) };
   }
 
   async findUserBookings(userId: string, status?: BookingStatus) {
@@ -110,7 +111,7 @@ export class BookingsService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return { data: bookings };
+    return { data: withBookingAliasList(bookings) };
   }
 
   async findWorkerBookings(workerId: string, status?: BookingStatus) {
@@ -149,7 +150,7 @@ export class BookingsService {
       throw new ForbiddenException('Access denied');
     }
 
-    return { data: booking };
+    return { data: withBookingAlias(booking) };
   }
 
   async acceptBooking(bookingId: string, workerId: string) {
