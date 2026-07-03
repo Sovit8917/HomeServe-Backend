@@ -7,6 +7,11 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# prisma.config.ts requires DATABASE_URL to be resolvable even for `generate`,
+# which never actually connects to a database. A dummy value is fine here.
+ENV DATABASE_URL="postgresql://user:password@localhost:5432/db?schema=public"
+
 RUN npx prisma generate
 RUN npm run build
 
