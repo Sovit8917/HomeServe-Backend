@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationsService } from './notifications.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { EVENTS } from '../../common/events/events.constants';
 
 @Injectable()
 export class NotificationsListener {
-  constructor(private notificationsService: NotificationsService) {}
+  private readonly logger = new Logger(NotificationsListener.name);
+
+  constructor(
+    private notificationsService: NotificationsService,
+    private prisma: PrismaService,
+  ) {}
 
   @OnEvent(EVENTS.BOOKING_CREATED)
   async handleBookingCreated(payload: any) {
@@ -16,6 +22,51 @@ export class NotificationsListener {
       type: EVENTS.BOOKING_CREATED,
       extraData: { bookingId: payload.bookingId },
     });
+
+    await this.notifyMatchingWorkers(payload);
+  }
+
+  private async notifyMatchingWorkers(payload: {
+    bookingId: string;
+    bookingNumber: string;
+    serviceIds?: string[];
+    serviceNames?: string[];
+    addressCity?: string;
+    finalAmount?: number;
+  }) {
+    if (!payload.serviceIds?.length) return;
+
+    try {
+      const matchingWorkers = await this.prisma.worker.findMany({
+        where: {
+          isActive: true,
+          isBlocked: false,
+          status: 'APPROVED',
+          services: { some: { serviceId: { in: payload.serviceIds } } },
+        },
+        select: { id: true },
+      });
+
+      if (matchingWorkers.length === 0) return;
+
+      const serviceLabel = payload.serviceNames?.join(', ') || 'a service';
+      const areaLabel = payload.addressCity ? ` in ${payload.addressCity}` : '';
+      const amountLabel = payload.finalAmount ? ` · ₹${payload.finalAmount.toFixed(0)}` : '';
+
+      await Promise.all(
+        matchingWorkers.map((w) =>
+          this.notificationsService.create({
+            workerId: w.id,
+            title: 'New Job Available 🔔',
+            body: `A new request for ${serviceLabel}${areaLabel} matches your skills${amountLabel}. Tap to accept before someone else does.`,
+            type: 'booking.new_request',
+            extraData: { bookingId: payload.bookingId },
+          }),
+        ),
+      );
+    } catch (err) {
+      this.logger.error('Failed to notify matching workers', err as Error);
+    }
   }
 
   @OnEvent(EVENTS.BOOKING_ACCEPTED)

@@ -85,7 +85,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // Called from TrackingGateway or BookingsService
+
   emitToUser(userId: string, event: string, data: any) {
     this.server.to(`user:${userId}`).emit(event, data);
+  }
+
+  // Lets ChatService push a REST-created message to anyone already
+  // connected over the socket (e.g. a customer app watching this booking's
+  // room), without requiring the sender to also be on a socket connection.
+  broadcastToBooking(bookingId: string, event: string, data: any) {
+    this.server?.to(`booking:${bookingId}`).emit(event, data);
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -23,6 +23,15 @@ export class ChatController {
     @Query('limit') limit: number,
   ) {
     return this.chatService.getMessages(bookingId, +page || 1, +limit || 50);
+  }
+
+  @Post(':bookingId/messages')
+  sendMessage(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: any,
+    @Body('message') message: string,
+  ) {
+    return this.chatService.sendMessage(bookingId, user.id, user.role, message);
   }
 
   @Get(':bookingId/unread')

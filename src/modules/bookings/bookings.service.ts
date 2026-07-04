@@ -90,6 +90,7 @@ export class BookingsService {
       bookingId: booking.id,
       bookingNumber: booking.bookingNumber,
       userId,
+      serviceIds: booking.items.map((i: any) => i.serviceId),
       serviceNames: booking.items.map((i: any) => i.service.name),
       scheduledDate: booking.scheduledDate,
       scheduledTime: booking.scheduledTime,
