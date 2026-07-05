@@ -125,7 +125,7 @@ export class BookingsService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return { data: bookings };
+    return { data: bookings.map((b) => this.redactCustomerContact(b)) };
   }
 
   async findOne(id: string, requesterId: string, requesterRole: string) {
@@ -151,7 +151,31 @@ export class BookingsService {
       throw new ForbiddenException('Access denied');
     }
 
-    return { data: withBookingAlias(booking) };
+    // Workers only need the customer's contact details while a job is
+    // actively assigned to them. Once it's finished (completed/cancelled/
+    // rejected) or not yet accepted by anyone, strip personal contact info.
+    const sanitized =
+      requesterRole === 'WORKER' ? this.redactCustomerContact(booking) : booking;
+
+    return { data: withBookingAlias(sanitized) };
+  }
+
+  /**
+   * Removes the customer's phone number from a booking payload once the
+   * job is no longer active for the worker. "Active" = ACCEPTED or
+   * IN_PROGRESS. Anything else (PENDING with no worker yet, COMPLETED,
+   * CANCELLED, REJECTED) should not expose the customer's personal
+   * contact info to the worker.
+   */
+  private redactCustomerContact<T extends { status: string; user?: any }>(booking: T): T {
+    const activeStatuses = [BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS];
+    if (!booking.user || activeStatuses.includes(booking.status as BookingStatus)) {
+      return booking;
+    }
+    return {
+      ...booking,
+      user: { ...booking.user, phone: null },
+    };
   }
 
   async acceptBooking(bookingId: string, workerId: string) {
@@ -358,6 +382,13 @@ export class BookingsService {
     if (!worker) throw new NotFoundException('Worker not found');
 
     const serviceIds = worker.services.map((s) => s.serviceId);
+
+    // A worker who hasn't selected any services yet would otherwise match
+    // an empty `in: []` filter, which silently returns zero rows and looks
+    // like "the app is broken" rather than "you haven't set up services".
+    if (serviceIds.length === 0) {
+      return { data: [], meta: { reason: 'NO_SERVICES_SELECTED' } };
+    }
 
     const bookings = await this.prisma.booking.findMany({
       where: {
