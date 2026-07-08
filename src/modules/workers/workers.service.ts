@@ -102,7 +102,7 @@ export class WorkersService {
       select: {
         id: true, name: true, avatar: true, rating: true, totalJobs: true,
         latitude: true, longitude: true, skills: true, experience: true,
-        bio: true, isOnline: true, totalReviews: true,
+        bio: true, isOnline: true, totalReviews: true, status: true,
       },
     });
     if (!worker) throw new NotFoundException('Worker not found');
@@ -136,7 +136,7 @@ export class WorkersService {
       select: {
         id: true, name: true, avatar: true, rating: true,
         totalJobs: true, latitude: true, longitude: true,
-        serviceRadius: true, skills: true,
+        serviceRadius: true, skills: true, status: true,
       },
     });
 

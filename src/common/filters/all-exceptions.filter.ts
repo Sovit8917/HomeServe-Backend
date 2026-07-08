@@ -30,8 +30,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const prismaErr = exception as any;
       if (prismaErr.code === 'P2002') {
         status = HttpStatus.CONFLICT;
-        message = 'Record already exists';
         error = 'Conflict';
+        const target: string[] = prismaErr.meta?.target ?? [];
+        if (target.includes('phone')) {
+          message =
+            'This mobile number is already registered. Please log in instead.';
+        } else if (target.includes('email')) {
+          message = 'This email is already registered.';
+        } else {
+          message = 'Record already exists';
+        }
       } else if (prismaErr.code === 'P2025') {
         status = HttpStatus.NOT_FOUND;
         message = 'Record not found';
