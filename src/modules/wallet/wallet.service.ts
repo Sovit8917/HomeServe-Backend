@@ -27,7 +27,7 @@ export class WalletService {
     const order = await this.razorpay.orders.create({
       amount: Math.round(amount * 100),
       currency: 'INR',
-      receipt: `topup_${userId}_${Date.now()}`,
+      receipt: `tu_${Date.now()}_${userId.slice(0, 8)}`,
     });
 
     return {
