@@ -31,27 +31,6 @@ export class WalletController {
     return this.walletService.getCustomerTransactions(userId, +page || 1, +limit || 20);
   }
 
-  @Roles(Role.CUSTOMER)
-  @Post('topup/create-order')
-  createTopupOrder(@CurrentUser('id') userId: string, @Body('amount') amount: number) {
-    return this.walletService.createTopupOrder(userId, +amount);
-  }
-
-  @Roles(Role.CUSTOMER)
-  @Post('topup/verify')
-  verifyTopup(
-    @CurrentUser('id') userId: string,
-    @Body()
-    dto: {
-      razorpayOrderId: string;
-      razorpayPaymentId: string;
-      razorpaySignature: string;
-      amount: number;
-    },
-  ) {
-    return this.walletService.verifyTopup(userId, dto);
-  }
-
   // ─── Worker ────────────────────────────────────────────────────
 
   @Roles(Role.WORKER)
