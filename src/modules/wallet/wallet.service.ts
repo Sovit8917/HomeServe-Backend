@@ -1,9 +1,66 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
+import Razorpay from 'razorpay';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class WalletService {
-  constructor(private prisma: PrismaService) {}
+  private razorpay: Razorpay;
+
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+  ) {
+    this.razorpay = new Razorpay({
+      key_id: config.get<string>('RAZORPAY_KEY_ID', ''),
+      key_secret: config.get<string>('RAZORPAY_KEY_SECRET', ''),
+    });
+  }
+
+  // ─── Wallet Top-up (Add Money) ─────────────────────────────────
+
+  async createTopupOrder(userId: string, amount: number) {
+    if (!amount || amount <= 0) throw new BadRequestException('Amount must be positive');
+    if (amount > 100000) throw new BadRequestException('Amount exceeds maximum allowed limit');
+
+    const order = await this.razorpay.orders.create({
+      amount: Math.round(amount * 100),
+      currency: 'INR',
+      receipt: `topup_${userId}_${Date.now()}`,
+    });
+
+    return {
+      data: {
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: this.config.get('RAZORPAY_KEY_ID'),
+      },
+    };
+  }
+
+  async verifyTopup(
+    userId: string,
+    dto: {
+      razorpayOrderId: string;
+      razorpayPaymentId: string;
+      razorpaySignature: string;
+      amount: number;
+    },
+  ) {
+    const body = `${dto.razorpayOrderId}|${dto.razorpayPaymentId}`;
+    const expectedSignature = crypto
+      .createHmac('sha256', this.config.get<string>('RAZORPAY_KEY_SECRET', ''))
+      .update(body)
+      .digest('hex');
+
+    if (expectedSignature !== dto.razorpaySignature) {
+      throw new BadRequestException('Invalid payment signature');
+    }
+
+    return this.addMoneyToWallet(userId, dto.amount, dto.razorpayPaymentId);
+  }
 
   // ─── Customer Wallet ───────────────────────────────────────────
 
