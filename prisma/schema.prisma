@@ -480,14 +480,16 @@ model SavedCard {
 }
 
 model Banner {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   title     String
   image     String
   link      String?
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model AppSetting {

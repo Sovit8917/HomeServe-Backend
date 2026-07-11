@@ -25,6 +25,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { BannersModule } from './modules/banners/banners.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -59,6 +60,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     AdminModule,
     UploadModule,
     MaintenanceModule,
+    BannersModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

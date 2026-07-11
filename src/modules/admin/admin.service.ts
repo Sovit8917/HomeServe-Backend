@@ -220,7 +220,8 @@ export class AdminService {
     return { message: 'Settings updated' };
   }
 
-  // ─── Banners ───────────────────────────────────────────────────
+
+// ─── Banners ───────────────────────────────────────────────────
 
   async getBanners(activeOnly = true) {
     const banners = await this.prisma.banner.findMany({
@@ -230,21 +231,78 @@ export class AdminService {
     return { data: banners };
   }
 
-  async createBanner(data: { title: string; image: string; link?: string; sortOrder?: number }) {
-    const banner = await this.prisma.banner.create({ data });
+  private validateBannerInput(data: {
+    title?: string;
+    image?: string;
+    startDate?: string | Date | null;
+    endDate?: string | Date | null;
+  }) {
+    if (data.title !== undefined && !data.title?.trim()) {
+      throw new BadRequestException('Banner title is required');
+    }
+    if (data.image !== undefined) {
+      const image = data.image?.trim();
+      if (!image) throw new BadRequestException('Banner image is required');
+      const looksLikeUrl = /^https?:\/\//i.test(image) || image.startsWith('/');
+      if (!looksLikeUrl) {
+        throw new BadRequestException('Banner image must be a valid URL or uploaded file path');
+      }
+    }
+    if (data.startDate && data.endDate) {
+      const start = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      if (start >= end) {
+        throw new BadRequestException('Banner end date must be after the start date');
+      }
+    }
+  }
+
+  async createBanner(data: {
+    title: string;
+    image: string;
+    link?: string;
+    sortOrder?: number;
+    isActive?: boolean;
+    startDate?: string | null;
+    endDate?: string | null;
+  }) {
+    this.validateBannerInput(data);
+    const banner = await this.prisma.banner.create({
+      data: {
+        title: data.title.trim(),
+        image: data.image.trim(),
+        link: data.link?.trim() || null,
+        sortOrder: data.sortOrder ?? 0,
+        isActive: data.isActive ?? true,
+        startDate: data.startDate ? new Date(data.startDate) : null,
+        endDate: data.endDate ? new Date(data.endDate) : null,
+      },
+    });
     return { message: 'Banner created', data: banner };
   }
 
   async updateBanner(id: string, data: any) {
-    const banner = await this.prisma.banner.update({ where: { id }, data });
+    this.validateBannerInput(data);
+    const banner = await this.prisma.banner.update({
+      where: { id },
+      data: {
+        ...(data.title !== undefined ? { title: data.title.trim() } : {}),
+        ...(data.image !== undefined ? { image: data.image.trim() } : {}),
+        ...(data.link !== undefined ? { link: data.link?.trim() || null } : {}),
+        ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        ...(data.startDate !== undefined
+          ? { startDate: data.startDate ? new Date(data.startDate) : null }
+          : {}),
+        ...(data.endDate !== undefined
+          ? { endDate: data.endDate ? new Date(data.endDate) : null }
+          : {}),
+      },
+    });
     return { message: 'Banner updated', data: banner };
   }
 
   async deleteBanner(id: string) {
-    await this.prisma.banner.delete({ where: { id } });
-    return { message: 'Banner deleted' };
-  }
-
   // ─── Payment Management ────────────────────────────────────────
 
   async getAllPayments(status?: string, page = 1, limit = 20) {
