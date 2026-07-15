@@ -491,7 +491,12 @@ export class BookingsService {
     return { message: 'Job completed successfully' };
   }
 
-  async cancelBooking(bookingId: string, requesterId: string, reason: string) {
+  async cancelBooking(
+    bookingId: string,
+    requesterId: string,
+    reason: string,
+    refundTo?: 'ORIGINAL' | 'WALLET',
+  ) {
     const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) throw new NotFoundException('Booking not found');
 
@@ -515,6 +520,7 @@ export class BookingsService {
       userId: booking.userId,
       workerId: booking.workerId ?? undefined,
       cancelReason: reason,
+      refundTo: refundTo ?? 'ORIGINAL',
     });
 
     return { message: 'Booking cancelled successfully' };

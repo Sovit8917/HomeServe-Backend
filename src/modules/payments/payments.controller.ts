@@ -6,10 +6,10 @@ import {
   Param,
   Headers,
   UseGuards,
-  RawBodyRequest,
   Req,
   BadRequestException,
 } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';

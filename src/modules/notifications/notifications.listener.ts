@@ -18,7 +18,7 @@ export class NotificationsListener {
     await this.notificationsService.create({
       userId: payload.userId,
       title: 'Booking Confirmed! 🎉',
-      body: `Your booking #${payload.bookingNumber} for ${payload.serviceNames?.join(', ')} is confirmed. Finding a worker for you.`, placed. Finding a worker for you.`,
+      body: `Your booking #${payload.bookingNumber} for ${payload.serviceNames?.join(', ')} is confirmed. Finding a worker for you.`,
       type: EVENTS.BOOKING_CREATED,
       extraData: { bookingId: payload.bookingId },
     });
