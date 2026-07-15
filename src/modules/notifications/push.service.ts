@@ -23,7 +23,11 @@ export class PushService implements OnModuleInit {
 
     if (!admin.apps.length) {
       admin.initializeApp({
-        credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+        credential: admin.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey,
+        }),
       });
     }
 
@@ -37,17 +41,36 @@ export class PushService implements OnModuleInit {
    */
   async sendToToken(
     token: string | null | undefined,
-    payload: { title: string; body: string; data?: Record<string, string> },
+    payload: {
+      title: string;
+      body: string;
+      data?: Record<string, string>;
+      imageUrl?: string;
+    },
   ): Promise<void> {
     if (!this.enabled || !token) return;
 
     try {
       await admin.messaging().send({
         token,
-        notification: { title: payload.title, body: payload.body },
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          ...(payload.imageUrl && { imageUrl: payload.imageUrl }),
+        },
         data: payload.data ?? {},
-        android: { priority: 'high' },
-        apns: { payload: { aps: { sound: 'default' } } },
+        android: {
+          priority: 'high',
+          ...(payload.imageUrl && {
+            notification: { imageUrl: payload.imageUrl },
+          }),
+        },
+        apns: {
+          payload: { aps: { sound: 'default' } },
+          ...(payload.imageUrl && {
+            fcmOptions: { imageUrl: payload.imageUrl },
+          }),
+        },
       });
     } catch (err: any) {
       // Common benign case: token expired/uninstalled — just log, don't throw.

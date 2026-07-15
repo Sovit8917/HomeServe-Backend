@@ -1,4 +1,13 @@
-import { Controller, Get, Put, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Put,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -20,9 +29,17 @@ export class NotificationsController {
     @Query('limit') limit: number,
   ) {
     if (user.role === 'WORKER') {
-      return this.notificationsService.getWorkerNotifications(user.id, +page || 1, +limit || 20);
+      return this.notificationsService.getWorkerNotifications(
+        user.id,
+        +page || 1,
+        +limit || 20,
+      );
     }
-    return this.notificationsService.getUserNotifications(user.id, +page || 1, +limit || 20);
+    return this.notificationsService.getUserNotifications(
+      user.id,
+      +page || 1,
+      +limit || 20,
+    );
   }
 
   @Put(':id/read')
@@ -40,7 +57,16 @@ export class NotificationsController {
 
   @Roles(Role.ADMIN)
   @Post('send-bulk')
-  sendBulk(@Body() data: { title: string; body: string; type: string; targetRole?: string }) {
+  sendBulk(
+    @Body()
+    data: {
+      title: string;
+      body: string;
+      type: string;
+      targetRole?: string;
+      imageUrl?: string;
+    },
+  ) {
     return this.notificationsService.sendBulk(data);
   }
 }
