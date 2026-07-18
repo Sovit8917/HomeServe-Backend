@@ -54,6 +54,13 @@ enum TicketStatus {
   CLOSED
 }
 
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
 model User {
   id            String    @id @default(uuid())
   phone         String    @unique
@@ -78,6 +85,7 @@ model User {
   savedCards    SavedCard[]
   otps          Otp[]
   pendingBookings PendingBooking[]
+  subscriptions   UserSubscription[]
 }
 
 model Worker {
@@ -377,6 +385,40 @@ model Coupon {
   updatedAt     DateTime  @updatedAt
 
   bookings      Booking[]
+}
+
+model SubscriptionPlan {
+  id                  String             @id @default(uuid())
+  name                String
+  description         String?
+  price               Float
+  durationDays        Int
+  discountPercent     Float
+  maxDiscountPerBooking Float?
+  isActive            Boolean            @default(true)
+  sortOrder           Int                @default(0)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  subscriptions       UserSubscription[]
+}
+
+model UserSubscription {
+  id                String             @id @default(uuid())
+  userId            String
+  planId            String
+  status            SubscriptionStatus @default(PENDING)
+  startDate         DateTime?
+  endDate           DateTime?
+  razorpayOrderId   String?            @unique
+  razorpayPaymentId String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id])
+  plan              SubscriptionPlan   @relation(fields: [planId], references: [id])
+
+  @@index([userId, status])
 }
 
 model Notification {

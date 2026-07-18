@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 // Booking statuses that mean "this job is over" — only chats attached to
 // bookings in one of these states are eligible for deletion. Anything
@@ -15,6 +16,7 @@ export class MaintenanceService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   private get notificationRetentionDays(): number {
@@ -36,6 +38,15 @@ export class MaintenanceService {
     await this.cleanupOldNotifications();
     await this.cleanupOldChatMessages();
     await this.cleanupAbandonedPendingBookings();
+    await this.expireLapsedSubscriptions();
+  }
+
+  async expireLapsedSubscriptions() {
+    const count = await this.subscriptionsService.expireLapsedSubscriptions();
+    if (count > 0) {
+      this.logger.log(`Marked ${count} lapsed subscription(s) as EXPIRED`);
+    }
+    return count;
   }
 
   async cleanupAbandonedPendingBookings() {

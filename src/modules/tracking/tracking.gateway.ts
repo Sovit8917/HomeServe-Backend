@@ -12,6 +12,18 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
+interface SocketPrincipal {
+  id: string;
+  role: 'CUSTOMER' | 'WORKER' | 'ADMIN';
+}
+
+// Only write a location row to the DB (and update Worker.lat/lng) at most
+// this often per worker, even if the phone sends updates every second.
+// The live broadcast to watchers still happens on every message —
+// this only throttles what gets persisted, so WorkerTracking doesn't
+// grow into millions of rows over a few months of operation.
+const MIN_PERSIST_INTERVAL_MS = 15_000;
+
 @WebSocketGateway({
   cors: { origin: '*' },
   namespace: '/tracking',
@@ -19,7 +31,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
-  private connectedWorkers = new Map<string, string>(); // socketId → workerId
+  private connectedUsers = new Map<string, SocketPrincipal>(); // socketId → principal
+  private lastPersistedAt = new Map<string, number>(); // workerId → timestamp
 
   constructor(
     private jwtService: JwtService,
@@ -35,14 +48,14 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
       const payload = this.jwtService.verify(token, {
         secret: this.config.get('JWT_SECRET'),
       });
-      this.connectedWorkers.set(socket.id, payload.sub);
+      this.connectedUsers.set(socket.id, { id: payload.sub, role: payload.role });
     } catch {
       socket.disconnect();
     }
   }
 
   handleDisconnect(socket: Socket) {
-    this.connectedWorkers.delete(socket.id);
+    this.connectedUsers.delete(socket.id);
   }
 
   @SubscribeMessage('worker:location')
@@ -50,34 +63,72 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
     @ConnectedSocket() socket: Socket,
     @MessageBody() data: { bookingId: string; latitude: number; longitude: number },
   ) {
-    const workerId = this.connectedWorkers.get(socket.id);
-    if (!workerId) return;
+    const principal = this.connectedUsers.get(socket.id);
+    if (!principal || principal.role !== 'WORKER') return;
+    const workerId = principal.id;
 
-    // Update worker location in DB
-    await this.prisma.worker.update({
-      where: { id: workerId },
-      data: { latitude: data.latitude, longitude: data.longitude },
+    // Only the worker actually assigned to this booking may push a
+    // location for it — otherwise any worker could spoof another
+    // worker's booking location.
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: data.bookingId },
+      select: { workerId: true, status: true },
     });
+    if (!booking || booking.workerId !== workerId) return;
+    if (!['ACCEPTED', 'IN_PROGRESS'].includes(booking.status)) return;
 
-    // Save tracking record
-    await this.prisma.workerTracking.create({
-      data: { bookingId: data.bookingId, workerId, latitude: data.latitude, longitude: data.longitude },
-    });
-
-    // Broadcast to customers tracking this booking
+    // Always broadcast live to whoever is watching this booking...
     this.server.to(`track:${data.bookingId}`).emit('location:update', {
       workerId,
       latitude: data.latitude,
       longitude: data.longitude,
       timestamp: new Date(),
     });
+
+    // ...but only persist to the DB at a throttled interval.
+    const now = Date.now();
+    const last = this.lastPersistedAt.get(workerId) ?? 0;
+    if (now - last < MIN_PERSIST_INTERVAL_MS) return;
+    this.lastPersistedAt.set(workerId, now);
+
+    await this.prisma.worker.update({
+      where: { id: workerId },
+      data: { latitude: data.latitude, longitude: data.longitude },
+    });
+
+    await this.prisma.workerTracking.create({
+      data: {
+        bookingId: data.bookingId,
+        workerId,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      },
+    });
   }
 
   @SubscribeMessage('track:booking')
-  handleTrackBooking(
+  async handleTrackBooking(
     @ConnectedSocket() socket: Socket,
     @MessageBody() data: { bookingId: string },
   ) {
+    const principal = this.connectedUsers.get(socket.id);
+    if (!principal) return;
+
+    // Prevent any logged-in user from watching an arbitrary booking —
+    // only that booking's own customer, its assigned worker, or an
+    // admin may join its tracking room.
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: data.bookingId },
+      select: { userId: true, workerId: true },
+    });
+    if (!booking) return;
+
+    const isAuthorized =
+      principal.role === 'ADMIN' ||
+      (principal.role === 'CUSTOMER' && booking.userId === principal.id) ||
+      (principal.role === 'WORKER' && booking.workerId === principal.id);
+    if (!isAuthorized) return;
+
     socket.join(`track:${data.bookingId}`);
   }
 

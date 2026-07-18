@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingStatus } from '../../common/enums';
 import { EVENTS } from '../../common/events/events.constants';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   withBookingAlias,
   withBookingAliasList,
@@ -23,6 +24,7 @@ export class BookingsService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   /**
@@ -30,8 +32,12 @@ export class BookingsService {
    * Does NOT write anything to the database and does NOT reserve coupon
    * usage — safe to call speculatively (e.g. to price a Razorpay order
    * before any booking exists).
+   *
+   * `userId` is optional only so existing callers that genuinely have no
+   * user context keep compiling — but any real booking flow should pass
+   * it, or the customer's subscription discount silently won't apply.
    */
-  async computeOrderAmounts(dto: CreateBookingDto) {
+  async computeOrderAmounts(dto: CreateBookingDto, userId?: string) {
     const services = await this.prisma.service.findMany({
       where: { id: { in: dto.items.map((i) => i.serviceId) }, isActive: true },
     });
@@ -73,6 +79,25 @@ export class BookingsService {
         );
       } else {
         couponId = undefined;
+      }
+    }
+
+    // Subscription discount is intentionally mutually exclusive with a
+    // coupon — if a coupon already discounted this order, we don't stack
+    // a second discount on top of it. This keeps the pricing simple and
+    // avoids two independently-configured discounts combining into an
+    // unintended (and possibly loss-making) total discount.
+    let subscriptionDiscount = 0;
+    if (!couponId && userId) {
+      const subDiscount = await this.subscriptionsService.getActiveDiscountForUser(userId);
+      if (subDiscount) {
+        subscriptionDiscount = roundMoney(
+          Math.min(
+            (totalAmount * subDiscount.discountPercent) / 100,
+            subDiscount.maxDiscountPerBooking ?? Infinity,
+          ),
+        );
+        discountAmount = subscriptionDiscount;
       }
     }
 
@@ -122,7 +147,7 @@ export class BookingsService {
   }
 
   async create(userId: string, dto: CreateBookingDto) {
-    const computed = await this.computeOrderAmounts(dto);
+    const computed = await this.computeOrderAmounts(dto, userId);
 
     let { discountAmount, couponId, taxAmount, finalAmount } = computed;
     if (couponId && !(await this.reserveCoupon(couponId))) {

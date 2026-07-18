@@ -96,9 +96,7 @@ export class PushService implements OnModuleInit {
         : false;
 
       if (invalidToken) {
-        this.logger.warn(
-          `Push token invalid/expired (${code}) — will clear it.`,
-        );
+        this.logger.warn(`Push token invalid/expired (${code}) — will clear it.`);
       } else {
         // Transient failure (network blip, throttling, etc.) — keep the token.
         this.logger.warn(`Push send failed: ${err?.message ?? err}`);

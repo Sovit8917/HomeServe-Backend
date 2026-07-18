@@ -4,6 +4,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -16,6 +17,7 @@ import * as bcrypt from 'bcrypt';
 @Injectable()
 export class AuthService {
   private twilioClient: twilio.Twilio;
+  private readonly logger = new Logger(AuthService.name);
 
   constructor(
     private prisma: PrismaService,
@@ -40,11 +42,28 @@ export class AuthService {
 
     // Send via Twilio (skip in dev if bypass configured)
     if (this.config.get('NODE_ENV') !== 'development') {
-      await this.twilioClient.messages.create({
-        body: `Your OTP for Home Service is: ${otp}. Valid for ${this.config.get('OTP_EXPIRY_MINUTES', 10)} minutes.`,
-        from: this.config.get('TWILIO_PHONE_NUMBER'),
-        to: dto.phone,
-      });
+      try {
+        await this.twilioClient.messages.create({
+          body: `Your OTP for Home Service is: ${otp}. Valid for ${this.config.get('OTP_EXPIRY_MINUTES', 10)} minutes.`,
+          from: this.config.get('TWILIO_PHONE_NUMBER'),
+          to: dto.phone,
+        });
+      } catch (err: any) {
+        // Twilio error codes worth knowing while debugging "OTP not received":
+        //  21211 - invalid 'to' phone number (missing/wrong country code)
+        //  21608 - unverified number on a Twilio trial account
+        //  21610 - recipient has unsubscribed from messages
+        //  21614 - not a valid SMS-capable number
+        // Also check DLT/sender-ID registration if targeting Indian numbers —
+        // carriers block undelivered messages silently regardless of Twilio's
+        // own status, and Twilio itself will not throw for that case.
+        this.logger.error(
+          `Twilio OTP send failed for ${dto.phone}: [${err?.code}] ${err?.message}`,
+        );
+        throw new BadRequestException(
+          'Failed to send OTP. Please check the phone number and try again.',
+        );
+      }
     }
 
     return {

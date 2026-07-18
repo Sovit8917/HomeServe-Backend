@@ -20,6 +20,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { AiSupportModule } from './modules/ai-support/ai-support.module';
 import { SupportModule } from './modules/support/support.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AdminModule } from './modules/admin/admin.module';
@@ -55,6 +57,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     ReviewsModule,
     WalletModule,
     CouponsModule,
+    SubscriptionsModule,
+    AiSupportModule,
     SupportModule,
     ReportsModule,
     AdminModule,

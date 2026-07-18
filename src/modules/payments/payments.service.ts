@@ -33,7 +33,7 @@ export class PaymentsService {
    * directly, since there's nothing to wait on.
    */
   async createOrderForNewBooking(userId: string, dto: CreateBookingDto) {
-    const computed = await this.bookingsService.computeOrderAmounts(dto);
+    const computed = await this.bookingsService.computeOrderAmounts(dto, userId);
 
     const order = await this.razorpay.orders.create({
       amount: Math.round(computed.finalAmount * 100),
